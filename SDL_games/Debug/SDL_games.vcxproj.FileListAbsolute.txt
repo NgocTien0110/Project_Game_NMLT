@@ -1,0 +1,2 @@
+D:\SDL_games\SDL_games\Debug\SDL_games.exe
+F:\Project\SDL_games\SDL_games\Debug\SDL_games.exe

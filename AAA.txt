@@ -1,0 +1,658 @@
+MAIN.CPP
+
+#include "Common_Function.h"
+#include "MainObject.h"
+#include "ThreatsObject.h"
+#include "ExplosionObject.h"
+#include "TextObject.h"
+#include <ctime>
+#include <cstdlib>
+
+int SPEED_THREAT = 8;
+
+TTF_Font* g_font_text = NULL;
+bool Init()
+{
+    if (SDL_Init(SDL_INIT_EVERYTHING) == -1)
+    {
+        return false;
+    }
+    g_screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_BPP, SDL_SWSURFACE);
+    if (g_screen == NULL)
+    {
+        return false;
+    }
+
+    if (TTF_Init() == -1)
+    {
+        return false;
+    }
+
+   // khai báo âm thanh
+    if (Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096) == -1)
+        return false;
+    // đọc file audio
+    g_sound_bullet[0] = Mix_LoadWAV("danlaser.wav");
+    g_sound_bullet[1] = Mix_LoadWAV("dancau.wav");
+    g_sound_exp[0] = Mix_LoadWAV("Explosion.wav");
+    g_sound_exp[1] = Mix_LoadWAV("Eplosionthreat");
+
+
+
+    g_font_text = TTF_OpenFont("Fresco Stamp.ttf", 50);//truyen font vao voi kich thuoc 40
+    if (g_font_text == NULL)
+    {
+        return false;
+    }
+    return true;
+}
+
+
+
+#undef main
+int main(int arc, char* argv[])
+{
+    int bkgn_x = 0;
+    bool is_quit = false;
+    if (Init() == false)
+    {
+        return 0;
+    }
+    g_background = SDLCommonFunc::LoadImage("bg600.png");
+
+if (g_background == NULL)
+{
+    return 0;
+}
+
+//Make main oject
+/*g_object = LoadImage("nhanvat.png");
+if (g_object == NULL)
+    return 0;
+ApplySurface(g_object, g_screen, 300, 420);*/
+
+//mang
+TextObject alive_game;
+alive_game.SetColor(TextObject::BLACK_TEXT);
+
+//diem
+TextObject mark_game;
+mark_game.SetColor(TextObject::BLACK_TEXT);
+
+//tgian
+TextObject time_game;
+time_game.SetColor(TextObject::BLACK_TEXT);
+
+MainObject plane_object;
+plane_object.SetRect(100, 200);
+bool ret = plane_object.LoadImg("plane_fly.png");
+if (!ret)
+{
+    return 0;
+}
+
+//Init explosion object
+ExplosionObject exp_main;//doi tuong rieng k can con tro
+ret = exp_main.LoadImg("exp_main.png");
+exp_main.set_clip();//goi clip
+if (!ret) 
+    return 0;
+
+
+//Make ThreatObject
+
+ThreatObject* p_threats = new ThreatObject[NUM_THREATS];
+
+srand((int)time(0));
+for (int t = 0; t < NUM_THREATS; t++)
+{
+    ThreatObject* p_threat = (p_threats + t);//khoi tao doi tuong
+    if (p_threat)
+    {
+        ret = p_threat->LoadImg("af1.png");
+        if (ret == false)
+        {
+            return 0;
+        }
+
+        //set vtri ngau nhien
+        int rand_y = rand() % 400;
+        if (rand_y > SCREEN_HEIGHT - 200)
+        {
+            rand_y = SCREEN_HEIGHT * 0.3;
+        }
+
+
+        p_threat->SetRect(SCREEN_WIDTH + t * 400, SCREEN_HEIGHT * 0.3);
+        p_threat->set_x_val(SPEED_THREAT);//TOC DO THREATS
+
+        //nap dan cho doi tuong amo
+        //AmoObject* p_amo = new AmoObject();
+        //p_threat->InitAmo(p_amo);
+    }
+
+}
+
+//khai bien cho diem
+unsigned int die_number = 0;
+unsigned int mark_value = 0;
+
+int ret_menu = SDLCommonFunc::ShowMenu(g_screen, g_font_text);//tra ve gia tri showmenu tra
+    if (ret_menu == 1)
+        is_quit = true;
+    if (ret_menu == 2)
+    {
+        int Showinstruc(SDL_Surface * des, int x, int y);
+    }
+
+int alive = 3;
+while (!is_quit)
+{
+    while (SDL_PollEvent(&g_even))
+    {
+        if (g_even.type == SDL_QUIT)
+        {
+            is_quit = true;
+            break;
+        }
+        plane_object.HandleInputAction(g_even, g_sound_bullet);
+    }
+
+    //apply backgr
+    bkgn_x -= 2;//moi lan while no thoa man hinh bi dich sang trai mot khoang la 2
+    SDLCommonFunc::ApplySurface(g_background, g_screen, bkgn_x, 0);
+    SDLCommonFunc::ApplySurface(g_background, g_screen, bkgn_x + SCREEN_WIDTH, 0);
+    if (bkgn_x <= -SCREEN_WIDTH)//ktr khi bkgn 1 no dich het sang phai thi gan lai x no = 0 de no dich chuyen tiep
+    {
+        bkgn_x = 0;
+    }
+    //main object
+    plane_object.HandleMove();
+    plane_object.Show(g_screen);
+    plane_object.MakeAmo(g_screen);
+
+
+    //RUN THREAT
+    for (int tt = 0; tt < NUM_THREATS; tt++)
+    {
+        ThreatObject* p_threat = (p_threats + tt);
+        if (p_threat)
+        {
+            p_threat->HandleMove(SCREEN_WIDTH, SCREEN_HEIGHT);
+            p_threat->Show(g_screen);
+            p_threat->MakeAmo(g_screen, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+            if (SDL_Flip(g_screen) == -1)
+                return 0;
+
+            //sau khi vien dan di chuyen xog se ktr va cham giua main va threats
+
+            bool is_col = SDLCommonFunc::CheckCollision(plane_object.GetRect(), p_threat->GetRect());
+            if (is_col)
+            {
+                alive--;
+                p_threat->Reset(SCREEN_WIDTH + tt * 400);
+                //die_number++;
+                //va cham thanh cog thi xay ra vu no
+                for (int ex = 0; ex < 4; ex++)
+                {
+                    //vtri cua vu no
+                    int x_pos = (plane_object.GetRect().x + plane_object.GetRect().w * 0.5) - EXP_WIDTH * 0.5;//tru cho chieu dai va chieu rong de ngay tam vu no
+                    int y_Pos = (plane_object.GetRect().y + plane_object.GetRect().h * 0.5) - EXP_HEIGHT * 0.5;
+
+                    exp_main.set_frame(ex);
+                    exp_main.SetRect(x_pos, y_Pos);
+                    exp_main.ShowEx(g_screen); //show hinh vu no len
+                    SDL_Delay(100);
+                    //update screen len
+
+                    if (SDL_Flip(g_screen) == -1)
+                    {
+                        delete[] p_threats;             // XÓA THREAT
+                        SDLCommonFunc::CleanUp();
+                        SDL_Quit();
+                        return 0;
+                    }
+
+                    Mix_PlayChannel(-1, g_sound_exp[0], 0);    // âm thanh g_sound_exp[0](được định nghĩa ở trên ) 0 là lặp lại
+                }
+                    if (alive != 0)
+                    {
+                        if (alive >= 2)
+                        {
+                            if (MessageBox(NULL, L"Bạn còn 2 mạng", L"NGU", MB_OK) == IDOK);
+                        }
+                        else
+                            if (MessageBox(NULL, L"Bạn còn 1 mạng", L"NGU", MB_OK) == IDOK);
+                     
+                        plane_object.SetRect(0, 320 );
+                        bool ret = plane_object.LoadImg("plane_fly.png");
+                        if (!ret)
+                        {
+                            return 0;
+                        }
+
+                    }
+                    else
+                    {
+                         if (MessageBox(NULL, L"MÀY ĐÃ THUA", L"NGU", MB_OK) == IDOK)
+                         {
+                            //XOA CON TRO
+                            delete[] p_threats;
+                            SDLCommonFunc::CleanUp();
+                            SDL_Quit();
+                            return 1;
+                         }
+                    }
+                    
+            }
+
+            //ktr va cham dan cua main vs threats
+            std::vector<AmoObject*> amo_list = plane_object.GetAmoList(); //goi ham dan
+            for (int im = 0; im < amo_list.size(); im++)
+            {
+                AmoObject* p_amo = amo_list.at(im);
+                if (p_amo != NULL)
+                {
+                    //ktr neu va cham dan
+                    bool ret_col = SDLCommonFunc::CheckCollision(p_amo->GetRect(), p_threat->GetRect());
+                    if (ret_col)//true 
+                    {
+                        mark_value += 10;
+                        //khi hai object va cham nhau thi threat dc set ve vtri bdau
+                        p_threat->Reset(SCREEN_WIDTH + tt * 400);
+                        //vien dan main bi xoa bo
+                        plane_object.RemoveAmo(im);
+                        Mix_PlayChannel(-1, g_sound_exp[1], 0);   // âm thanh g_sound_exp[1](được định nghĩa ở trên ) 0 là lặp lại
+                        if (mark_value == 500)
+                        {
+                            if (MessageBox(NULL, L"BẠN ĐÃ QUA MÀN 1", L"GIỎI", MB_OK) == IDOK)
+                            {
+                                SPEED_THREAT = 15;
+                                for (int t = 0; t < NUM_THREATS; t++)
+                                {
+                                    ThreatObject* p_threat = (p_threats + t);//khoi tao doi tuong
+                                    if (p_threat)
+                                    {
+                                        ret = p_threat->LoadImg("af1.png");
+                                        if (ret == false)
+                                        {
+                                            return 0;
+                                        }
+                                    }
+                                    int rand_y = rand() % 400;
+                                    if (rand_y > SCREEN_HEIGHT - UNDER_LIMIT_THREAT)
+                                    {
+                                        rand_y = SCREEN_HEIGHT * 0.3;
+                                    }
+                                    p_threat->SetRect(SCREEN_WIDTH + t * 400, SCREEN_HEIGHT * 0.3);
+                                    p_threat->set_x_val(SPEED_THREAT);//TOC DO THREATS
+                                }
+                            }                           
+                        }
+                        if (mark_value == 1000)
+                        {
+                            if (MessageBox(NULL, L"BẠN ĐÃ QUA MÀN 2", L"GIỎI", MB_OK) == IDOK)
+                            {
+                                SPEED_THREAT = 20;
+                                for (int t = 0; t < NUM_THREATS; t++)
+                                {
+                                    ThreatObject* p_threat = (p_threats + t);//khoi tao doi tuong
+                                    if (p_threat)
+                                    {
+                                        ret = p_threat->LoadImg("af1.png");
+                                        if (ret == false)
+                                        {
+                                            return 0;
+                                        }
+                                    }
+                                    int rand_y = rand() % 400;
+                                    if (rand_y > SCREEN_HEIGHT - UNDER_LIMIT_THREAT)
+                                    {
+                                        rand_y = SCREEN_HEIGHT * 0.3;
+                                    }
+                                    p_threat->SetRect(SCREEN_WIDTH + t * 400, SCREEN_HEIGHT * 0.3);
+                                    p_threat->set_x_val(SPEED_THREAT);//TOC DO THREATS
+                                }
+                            }
+                        }
+
+                    }
+                }
+            }
+
+        }
+    }
+
+    //Show time
+    std::string str_time = "Time : ";
+    Uint32 time_val = SDL_GetTicks() / 1000;
+    std::string str_val = std::to_string(time_val);
+    str_time += str_val;//CONG CHUOI
+
+    time_game.SetText(str_time);
+    time_game.SetRect(SCREEN_WIDTH - 300, 550);
+    time_game.CreateGameText(g_font_text, g_screen);
+    //show alive
+    /*std::string val_str_alive = std::to_string(die_number);
+    std::string strAlive("DEATH: ");
+    strAlive += val_str_alive;
+
+    alive_game.SetText(strAlive);//truyen gtri strMark vao
+    alive_game.SetRect(0, 40);
+    alive_game.CreateGameText(g_font_text, g_screen);
+
+    if (SDL_Flip(g_screen) == -1)
+    {
+        return 0;
+    }*/
+
+    //Show mark
+    std::string val_str_mark = std::to_string(mark_value);
+    std::string strMark("POINT: ");
+    strMark += val_str_mark;
+
+    mark_game.SetText(strMark);//truyen gtri strMark vao
+    mark_game.CreateGameText(g_font_text, g_screen);
+
+        if (SDL_Flip(g_screen) == -1)
+        {
+            return 0;
+        }
+    }
+
+    delete[] p_threats;
+    SDLCommonFunc::CleanUp();
+    SDL_Quit();
+	return 1;
+
+}
+
+
+
+
+Common_Function.h
+
+#ifndef COMMON_FUNCTION_H_
+#define COMMON_FUNCTION_H_
+
+#include <Windows.h>
+#include <SDL.h>
+#include <string>
+#include <SDL_image.h>
+#include <SDL_ttf.h>
+#include <SDL_mixer.h>
+
+const int SCREEN_WIDTH = 1200;
+const int SCREEN_HEIGHT = 588;
+const int SCREEN_BPP = 32;
+const int SPEED_MAIN_OBJECT = 20;
+
+const int NUM_THREATS = 13;//so luong threat
+const int UNDER_LIMIT_THREAT = 200;
+const int SPEED_BULLET_THREATS = 10;
+
+static SDL_Surface* g_screen = NULL;
+static SDL_Surface* g_background = NULL;
+static SDL_Event g_even;
+static SDL_Surface* g_img_menu = NULL;
+static SDL_Surface* instruction = NULL;
+
+
+static Mix_Chunk* g_sound_bullet[2];          // khai báo âm thanh của súng
+static Mix_Chunk* g_sound_exp[2];
+namespace SDLCommonFunc
+{
+	SDL_Surface* LoadImage(std::string file_path);
+	SDL_Rect ApplySurface(SDL_Surface* src, SDL_Surface* des, int x, int y);
+	void ApplySurfaceClip(SDL_Surface* src, SDL_Surface* des, SDL_Rect* clip, int x, int y);
+	void CleanUp();
+	bool CheckCollision(const SDL_Rect& object, const SDL_Rect& object2);
+	int ShowMenu(SDL_Surface* des, TTF_Font* font);
+	int ShowInstruc(SDL_Surface* des, int x, int y);
+	bool CheckFocusWithRect(const int& x, const int& y, const SDL_Rect& rect);//hàm ktr tọa độ nằm trong vùng nào đó
+}
+
+#endif
+
+
+
+
+
+BaseObject.h
+#ifndef BASE_OBJECT_H_
+#define BASE_OBJECT_H_
+#include "Common_Function.h"
+
+class BaseObject
+{
+public:
+	BaseObject();
+	~BaseObject();
+	void Show(SDL_Surface* des);//truyen vao man hinh
+	bool LoadImg(const char* file_name);
+
+	void SetRect(const int& x, const int& y) { rect_.x = x, rect_.y = y;}
+	SDL_Rect GetRect() const { return rect_;}
+	//tra ra doi tuong surface
+	SDL_Surface* GetObject() { return p_object_; }
+	//cac lop con ke thua muon ke thua cac thuoc tinh cua thg nay thi phai dung protected
+protected:
+	SDL_Rect rect_;//_ duoi de phan biet cac lop thanh vien
+	SDL_Surface* p_object_;
+};
+
+#endif
+
+
+
+
+
+
+AmoObject.h
+#ifndef AMO_OBJECT_H_
+#define AMO_OBJECT_H_
+#include "BaseObject.h"
+
+#define WIDTH_LASER 35
+#define HEIGHT_LASER 5
+
+#define WIDTH_SPHERE 10
+#define HEIGHT_SPHERE 10
+
+class AmoObject : public BaseObject
+{
+public:
+	enum AmoType
+	{
+		NONE = 0,
+		LASER = 1,
+		SPHERE = 2,
+	};
+	AmoObject();
+	~AmoObject();
+	void HandleInputAction(SDL_Event events);
+	void HandleMove(const int& x_border, const int& y_border);
+	void HandleMoveRightToLeft();
+
+	int get_type() const { return amo_type_; }
+	void set_type(const int& type) { amo_type_ = type; }
+
+	bool get_is_move() const { return is_move_; }
+	void set_is_move(bool is_move) { is_move_ = is_move; }
+	// ham set kich thuoc cho dan
+	void SetWidthHeight(const int& widht, const int& height) { rect_.w = widht; rect_.h = height; };
+
+	//Khoi tao gtri cho x_val, y_val
+	void set_x_val(const int& val) { x_val_ = val; }
+	void set_y_val(const int& val) { y_val_ = val; }
+
+	int get_x_val() const { return x_val_; }
+	int get_y_val() const { return y_val_; }
+private:
+	int x_val_;
+	int y_val_;
+	bool is_move_;
+	int amo_type_;
+};
+#endif
+
+
+
+
+MainObject.h
+#ifndef MAIN_OBJECT_H_
+#define MAIN_OBJECT_H_
+
+#include "Common_Function.h"
+#include "BaseObject.h"
+#include "AmoObject.h"
+#include <vector>
+
+//kich thuoc tam anh ta su dung
+#define WIDTH_MAIN_OBJECT 77
+#define HEIGHT_MAIN_OBJECT 52
+
+//ke thua ben baseobject
+class MainObject : public BaseObject
+{
+public:
+	MainObject();
+	~MainObject();
+
+	void HandleInputAction(SDL_Event events, Mix_Chunk* sound[2]);
+	void HandleMove();
+	void SetAmoList(std::vector<AmoObject*> amo_list) { p_amo_list_ = amo_list; }
+	std::vector<AmoObject*> GetAmoList() const { return p_amo_list_; }
+	void MakeAmo(SDL_Surface* des);
+	void RemoveAmo(const int& idx);
+private:
+	int x_val_;
+	int y_val;
+
+	//khai bao amo
+	std::vector<AmoObject*> p_amo_list_;
+};
+
+
+#endif
+
+
+
+
+
+
+
+TextObject.h
+#ifndef TEXT_OBJECT_H_
+#define TEXT_OBJECT_H_
+#include <string>
+#include "BaseObject.h"
+#include <SDL_ttf.h>
+class TextObject : public BaseObject
+{
+public:
+	enum TextColor
+	{
+		RED_TEXT = 0,
+		WHITE_TEXT = 1,
+		BLACK_TEXT = 2,
+	};
+	TextObject();
+	~TextObject();
+
+	void SetText(const std::string& text) { str_val_ = text; }
+	void SetColor(const int& type);
+	void CreateGameText(TTF_Font* font, SDL_Surface* des);
+private:
+	std::string str_val_;
+	SDL_Color text_color_;
+};
+
+
+#endif // !TEXT_OBJECT_H_
+
+
+
+
+
+
+ExplosionObject.h
+#ifndef EXPLOSION_H_
+#define EXPLOSION_H_
+
+#include "BaseObject.h"
+#include "Common_Function.h"
+
+//kich thuoc tam anh
+const int EXP_WIDTH = 165;
+const int EXP_HEIGHT = 165;
+
+class ExplosionObject : public BaseObject
+{
+public:
+	ExplosionObject();
+	~ExplosionObject();
+	void set_clip();
+	void set_frame(const int& fr) { frame_ = fr; }
+	void ShowEx(SDL_Surface* des);
+
+private:
+	int frame_;
+	SDL_Rect clip_[4];
+};
+
+
+#endif 
+
+
+
+
+
+
+
+ThreatsObject.h
+#ifndef THREATES_OBJECT_H_
+#define THREATES_OBJECT_H_
+#include "Common_Function.h"
+#include "BaseObject.h"
+#include "AmoObject.h"
+#include <vector>
+
+#define WIDTH_THREAT 85
+#define HEIGHT_THREAT 46
+
+class ThreatObject : public BaseObject
+{
+public:
+	ThreatObject();
+	~ThreatObject();
+
+	void HandleMove(const int& x_bordr, const int& y_border);
+	void HandleInputAction(SDL_Event events);
+
+	void set_x_val(const int& val) { x_val_ = val; }
+	void set_y_val(const int& val) { y_val_ = val; }
+	int get_x_val() const { return x_val_; }
+	int get_y_val() const { return y_val_; }
+
+	void SetAmoList(std::vector<AmoObject*> amo_list) { p_amo_list_ = amo_list; }
+	std::vector<AmoObject*> GetAmoList() const { return p_amo_list_; }
+
+	void InitAmo(AmoObject* p_amo);
+	void MakeAmo(SDL_Surface* des, const int& x_limit, const int& y_limit);
+	void Reset(const int& xboder);
+	void ResetAmo(AmoObject* p_amo);
+
+private:
+	int x_val_;
+	int y_val_;
+
+	std::vector<AmoObject*> p_amo_list_;
+};
+
+#endif
+
+
+
+

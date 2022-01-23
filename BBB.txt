@@ -1,0 +1,756 @@
+Common_F.cpp
+
+#include "Common_Function.h"
+#include "TextObject.h"
+
+bool SDLCommonFunc::CheckFocusWithRect(const int& x, const int& y, const SDL_Rect& rect)
+{
+    if (x >= rect.x && x < rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h)
+    {
+        return true;
+    }
+    return false;
+}
+
+/*int SDLCommonFunc::ShowInstruc(SDL_Surface* des, int x, int y)
+{
+    system("cls");
+    instruction = LoadImage("menu.png");
+    if (instruction == NULL)
+    {
+        return 1;//exit
+    }
+    SDLCommonFunc::ApplySurface(instruction, des, 0, 0);
+}*/
+
+int SDLCommonFunc::ShowMenu(SDL_Surface* des, TTF_Font* font)
+{
+    g_img_menu = LoadImage("menu2.png");
+    if (g_img_menu == NULL)
+    {
+        return 1;//exit
+    }
+
+    const int kMenuItemNum = 3;
+    SDL_Rect pos_arr[kMenuItemNum];
+    pos_arr[0].x = 200;
+    pos_arr[0].y = 400;
+    pos_arr[1].x = 200;
+    pos_arr[1].y = 300;
+    pos_arr[2].x = 200;
+    pos_arr[2].y = 200;
+
+    TextObject text_menu[kMenuItemNum];
+
+    text_menu[0].SetText("Play Game");
+    text_menu[0].SetColor(TextObject::BLACK_TEXT);
+    text_menu[0].SetRect(pos_arr[0].x, pos_arr[0].y);
+    text_menu[1].SetText("Exit");
+    text_menu[1].SetColor(TextObject::BLACK_TEXT);
+    text_menu[1].SetRect(pos_arr[1].x, pos_arr[1].y);
+    /*text_menu[2].SetText("Instruction");
+    text_menu[2].SetColor(TextObject::BLACK_TEXT);
+    text_menu[2].SetRect(pos_arr[2].x, pos_arr[2].y);*/
+
+    //ktr luc nhan chuot
+    bool selected[kMenuItemNum] = { 0, 0, 0 };
+    int xm = 0;
+    int ym = 0;
+
+    //lấy vòng skien của con chuột vì con chuột di chueeyenr ltuc
+    SDL_Event m_event;
+    while (true)
+    {
+        SDLCommonFunc::ApplySurface(g_img_menu, des, 0, 0);//load ảnh menu lên
+        for (int i = 0; i < kMenuItemNum; i++)
+        {
+            text_menu[i].CreateGameText(font, des);
+        }
+
+        //vòng skien
+        while (SDL_PollEvent(&m_event))
+        {
+            switch (m_event.type)
+            {
+            case SDL_QUIT://cái mũi tên thoát
+                return 1;
+            case SDL_MOUSEMOTION:
+            {
+                //lay toa do cua con chuot
+                xm = m_event.motion.x;
+                ym = m_event.motion.y;
+
+                //ktra con chuột nod có nằm trog vùng item menu k
+                for (int i = 0; i < kMenuItemNum; i++)
+                {
+                    if (CheckFocusWithRect(xm, ym, text_menu[i].GetRect()))//đã được ktr ở trên
+                    {
+                        if (selected[i] == false)
+                        {
+                            selected[i] = 1;//nằm trog vùng thì đúng
+                            text_menu[i].SetColor(TextObject::RED_TEXT);
+                        }
+                    }
+                    else
+                    {
+                        if (selected[i] == true)
+                        {
+                            selected[i] = 0;
+                            text_menu[i].SetColor(TextObject::BLACK_TEXT);
+                        }
+                    }
+                }
+                break;
+            case SDL_MOUSEBUTTONDOWN:
+            {
+                xm = m_event.button.x;
+                ym = m_event.button.y;
+                for (int i = 0; i < kMenuItemNum; i++)
+                {
+                    if (CheckFocusWithRect(xm, ym, text_menu[i].GetRect()))
+                    {
+                        return i;
+                    }
+                }
+            }
+            break;
+            case SDL_KEYDOWN:
+                if (m_event.key.keysym.sym == SDLK_ESCAPE)
+                {
+                    return 1;
+                }
+            default:
+                break;
+            }
+            }
+        }
+        SDL_Flip(des);
+    }
+    return 1;
+}
+
+SDL_Surface* SDLCommonFunc::LoadImage(std::string file_path)
+{
+    SDL_Surface* load_image = NULL;
+    SDL_Surface* optimize_image = NULL;
+    load_image = IMG_Load(file_path.c_str());
+    if (load_image != NULL)
+    {
+        optimize_image = SDL_DisplayFormat(load_image);
+        SDL_FreeSurface(load_image);
+
+        if (optimize_image != NULL)
+        {
+            UINT32 color_key = SDL_MapRGB(optimize_image->format, 0xFF, 0xAE, 0xC9);
+            SDL_SetColorKey(optimize_image, SDL_SRCCOLORKEY, color_key);
+        }
+    }
+    return optimize_image;
+}
+
+SDL_Rect SDLCommonFunc::ApplySurface(SDL_Surface* src, SDL_Surface* des, int x, int y)
+{
+    SDL_Rect offset;
+    offset.x = x;
+    offset.y = y;
+    SDL_BlitSurface(src, NULL, des, &offset);
+
+    return offset;
+}
+
+void SDLCommonFunc::ApplySurfaceClip(SDL_Surface* src, SDL_Surface* des, SDL_Rect* clip, int x, int y)
+{
+    SDL_Rect offset;
+    offset.x = x;
+    offset.y = y;
+    SDL_BlitSurface(src, clip, des, &offset);
+}
+
+//ktr va cham giua 2 object
+bool SDLCommonFunc::CheckCollision(const SDL_Rect& object1, const SDL_Rect& object2)
+{
+    int left_a = object1.x;
+    int right_a = object1.x + object1.w;
+    int top_a = object1.y;
+    int bottom_a = object1.y + object1.h;
+
+    int left_b = object2.x;
+    int right_b = object2.x + object2.w;
+    int top_b = object2.y;
+    int bottom_b = object2.y + object2.h;
+
+    // Case 1: size object 1 < size object 2
+    if (left_a > left_b && left_a < right_b)
+    {
+        if (top_a > top_b && top_a < bottom_b)
+        {
+            return true;
+        }
+    }
+
+    if (left_a > left_b && left_a < right_b)
+    {
+        if (bottom_a > top_b && bottom_a < bottom_b)
+        {
+            return true;
+        }
+    }
+
+    if (right_a > left_b && right_a < right_b)
+    {
+        if (top_a > top_b && top_a < bottom_b)
+        {
+            return true;
+        }
+    }
+
+    if (right_a > left_b && right_a < right_b)
+    {
+        if (bottom_a > top_b && bottom_a < bottom_b)
+        {
+            return true;
+        }
+    }
+
+    // Case 2: size object 1 < size object 2
+    if (left_b > left_a && left_b < right_a)
+    {
+        if (top_b > top_a && top_b < bottom_a)
+        {
+            return true;
+        }
+    }
+
+    if (left_b > left_a && left_b < right_a)
+    {
+        if (bottom_b > top_a && bottom_b < bottom_a)
+        {
+            return true;
+        }
+    }
+
+    if (right_b > left_a && right_b < right_a)
+    {
+        if (top_b > top_a && top_b < bottom_a)
+        {
+            return true;
+        }
+    }
+
+    if (right_b > left_a && right_b < right_a)
+    {
+        if (bottom_b > top_a && bottom_b < bottom_a)
+        {
+            return true;
+        }
+    }
+
+    // Case 3: size object 1 = size object 2
+    if (top_a == top_b && right_a == right_b && bottom_a == bottom_b)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+/*int SDLCommonFunc::ShowMenu(SDL_Surface* des, TTF_Font* font)
+{
+    return 0;
+}*/
+
+void SDLCommonFunc::CleanUp()
+{
+    SDL_FreeSurface(g_screen);
+    SDL_FreeSurface(g_background);
+}
+
+
+
+
+BaseObject.cpp
+
+#include "BaseObject.h"
+
+
+BaseObject::BaseObject()
+{
+	rect_.x = 0;
+	rect_.y = 0;
+	p_object_ = NULL;
+}
+
+BaseObject::~BaseObject()
+{
+	if (p_object_ != NULL)
+	{
+		SDL_FreeSurface(p_object_);
+	}
+}
+
+bool BaseObject::LoadImg(const char* file_name)
+{
+	p_object_ = SDLCommonFunc::LoadImage(file_name);
+	if (p_object_ == NULL)
+		return false;
+	return true;
+}
+
+void BaseObject::Show(SDL_Surface* des)
+{
+	if (p_object_ != NULL)
+	{
+		rect_ = SDLCommonFunc::ApplySurface(p_object_, des, rect_.x, rect_.y);//nam vi tri thu bao nhieu tren cai nen cua DES
+
+	}
+}
+
+
+
+
+
+
+AmoObject.cpp
+#include "AmoObject.h"
+
+AmoObject::AmoObject()
+{
+	rect_.x = 0;
+	rect_.y = 0;
+	x_val_ = 0;
+	y_val_ = 0;
+	is_move_ = false;
+	amo_type_ = NONE;
+	p_object_ = NULL;
+}
+
+AmoObject::~AmoObject()
+{
+
+
+}
+
+void AmoObject::HandleMove(const int& x_border, const int& y_border)
+{
+	//rect_.x += x_val_;//dan ban thang mot luong la x_val_
+	//phai ktr dan ban den gioi han screen
+
+	if (rect_.y % 2 == 0)
+	{
+		rect_.x = rect_.x + x_val_;
+		rect_.y = rect_.y + 21;
+	}
+	else
+	{
+		rect_.x = rect_.x + x_val_;
+		rect_.y = rect_.y - 21;
+	}
+	if (rect_.x > x_border)
+	{
+		is_move_ = false;
+	}
+}
+
+
+void AmoObject::HandleMoveRightToLeft()
+{
+	rect_.x -= x_val_;
+	if (rect_.x < 0)
+	{
+		is_move_ = false;
+	}
+}
+
+void AmoObject::HandleInputAction(SDL_Event events)
+{
+
+}
+
+
+
+
+
+ThreatsObject.cpp
+#include "ThreatsObject.h"
+#include "AmoObject.h"
+
+ThreatObject::ThreatObject()
+{
+	//vtri ban dau xuat hien
+	rect_.x = SCREEN_WIDTH;//mep phai man hinh
+	rect_.y = SCREEN_HEIGHT * 0.5;//nam giua man hinh
+	rect_.w = WIDTH_THREAT;
+	rect_.h = HEIGHT_THREAT;
+	x_val_ = 0;
+	y_val_ = 0;
+}
+
+//dam bao cho giai phong tat ca bo nho
+ThreatObject::~ThreatObject()
+{
+	if (p_amo_list_.size() > 0)
+	{
+		for (int i = 0; i < p_amo_list_.size(); i++)
+		{
+			AmoObject* p_amo = p_amo_list_.at(i);
+			if (p_amo != NULL)
+			{
+				delete p_amo;
+				p_amo = NULL;
+			}
+		}
+		p_amo_list_.clear();
+	}
+}
+
+void ThreatObject::InitAmo(AmoObject* p_amo)
+{
+	/*if (p_amo)
+	{
+		bool ret = p_amo->LoadImg("sphere.png");
+		if (ret)
+		{
+			p_amo->set_is_move(true);
+			p_amo->SetWidthHeight(WIDTH_SPHERE, HEIGHT_SPHERE);
+			p_amo->set_type(AmoObject::SPHERE);
+			p_amo->SetRect(rect_.x, rect_.y + rect_.h * 0.5);
+			p_amo->set_x_val(SPEED_BULLET_THREATS);
+			p_amo_list_.push_back(p_amo);
+		}
+	}*/
+}
+
+void ThreatObject::MakeAmo(SDL_Surface* des, const int& x_limit, const int& y_limit)
+{
+	/*for (int i = 0; i < p_amo_list_.size(); i++)
+	{
+		AmoObject* p_amo = p_amo_list_.at(i);
+		if (p_amo)
+		{
+			if (p_amo->get_is_move())
+			{
+				p_amo->Show(des);
+				p_amo->HandleMoveRightToLeft();
+			}
+			//set vtri vien dan sau khi ban lien tuc
+			else
+			{
+				p_amo->set_is_move(true);
+				p_amo->SetRect(rect_.x , rect_.y + rect_.h * 0.5);
+			}
+		}
+	}*/
+}
+
+void ThreatObject::HandleMove(const int& x_bordr, const int& y_border)
+{
+	rect_.x -= x_val_;
+	if (rect_.x < 0)
+	{
+		rect_.x = SCREEN_WIDTH;
+		//set vtri ngau nhien
+		int rand_y = rand() % 400;
+		if (rand_y > SCREEN_HEIGHT - UNDER_LIMIT_THREAT)
+		{
+			rand_y = SCREEN_HEIGHT * 0.3;
+		}
+
+		rect_.y = rand_y;
+	}
+}
+
+void ThreatObject::HandleInputAction(SDL_Event events)
+{
+
+}
+
+//reset threats
+void ThreatObject::Reset(const int& xboder)
+{
+	rect_.x = xboder;
+	//set vtri ngau nhien
+	int rand_y = rand() % 400;
+	if (rand_y > SCREEN_HEIGHT - UNDER_LIMIT_THREAT)
+	{
+		rand_y = SCREEN_HEIGHT * 0.3;
+	}
+	rect_.y = rand_y;
+
+	//reste vi tri vien dan
+	/*for (int i = 0; i < p_amo_list_.size(); i++)
+	{
+		AmoObject* p_amo = p_amo_list_.at(i);
+		if (p_amo)
+		{
+			ResetAmo(p_amo);
+		}
+	}*/
+}
+
+void ThreatObject::ResetAmo(AmoObject* p_amo)
+{
+	//reset lai vtri vien dan
+	//p_amo->SetRect(rect_.x, rect_.y + rect_.h * 0.5);
+}
+
+
+
+
+
+
+MainObject.cpp
+#include "MainObject.h"
+
+MainObject::MainObject()
+{
+	rect_.x = 0;
+	rect_.y = 0;
+	rect_.w = WIDTH_MAIN_OBJECT;
+	rect_.h = HEIGHT_MAIN_OBJECT;
+	x_val_ = 0;
+	y_val = 0;
+}
+
+MainObject::~MainObject()
+{
+	;
+}
+
+void MainObject::HandleInputAction(SDL_Event events, Mix_Chunk* bullte_sound[2])    /// xử lý cid chuột và âm thanh
+{
+	if (events.type == SDL_KEYDOWN)
+	{
+		switch (events.key.keysym.sym)
+		{
+		case SDLK_UP:
+			y_val -= HEIGHT_MAIN_OBJECT / 4;//DICH LEN TREN BANG 1/4 CHIEU CAO NHAN VAT
+			//TODO
+			break;
+		case SDLK_DOWN:
+			y_val += HEIGHT_MAIN_OBJECT / 4;
+			//TODO
+			break;
+		case SDLK_RIGHT:
+			x_val_ += WIDTH_MAIN_OBJECT / 4;
+			//TODO
+			break;
+		case SDLK_LEFT:
+			x_val_ -= WIDTH_MAIN_OBJECT / 4;
+			//TODO
+			break;;
+		default:
+			break;
+		}
+	}
+	else if (events.type == SDL_KEYUP)
+	{
+		switch (events.key.keysym.sym)
+		{
+		case SDLK_UP: y_val += HEIGHT_MAIN_OBJECT / 4; break;
+		case SDLK_DOWN: y_val -= HEIGHT_MAIN_OBJECT / 4; break;
+		case SDLK_LEFT: x_val_ += WIDTH_MAIN_OBJECT / 4; break;
+		case SDLK_RIGHT: x_val_ -= WIDTH_MAIN_OBJECT / 4; break;
+		}
+	}
+
+	else if (events.type == SDL_MOUSEBUTTONDOWN)
+	{
+		AmoObject* p_amo = new AmoObject();
+		//ktr neu bam chuot trai
+		if (events.button.button == SDL_BUTTON_LEFT)
+		{
+			p_amo->SetWidthHeight(WIDTH_LASER, HEIGHT_LASER);			// hàm đọ rộng của hình súng
+			p_amo->LoadImg("laser.png");								// hàm load ảnh súng lên màng hình
+			p_amo->set_type(AmoObject::LASER);
+			Mix_PlayChannel(-1, bullte_sound[0], 0);						// âm thanh của súng laser 
+		}
+		else if (events.button.button == SDL_BUTTON_RIGHT)
+		{
+			p_amo->SetWidthHeight(WIDTH_SPHERE, HEIGHT_SPHERE);			// hàm đọ rộng của hình súng
+			p_amo->LoadImg("sphere.png");										// hàm load ảnh súng lên màng hình
+			p_amo->set_type(AmoObject::SPHERE);
+			Mix_PlayChannel(-1, bullte_sound[1], 0);						// âm thnah của súng sphere
+
+		}
+
+		//CAP NHAT VI TRI phai dua vien dan nam trong vung cua may bay
+		p_amo->SetRect(this->rect_.x + this->rect_.w - 40, this->rect_.y + this->rect_.h*0.8);
+		p_amo->set_is_move(true);
+		p_amo->set_x_val(SPEED_MAIN_OBJECT);
+		p_amo_list_.push_back(p_amo);
+
+	}
+	else if (events.type == SDL_MOUSEBUTTONUP)
+	{
+
+	}
+}
+
+void MainObject::MakeAmo(SDL_Surface* des)
+{
+	// xử lý đạn khi nó di chuyển
+	for (int i = 0; i < p_amo_list_.size(); i++)     // kt coi đạn có trong máy bay chưa
+	{
+		AmoObject* p_amo = p_amo_list_.at(i);
+		if (p_amo != NULL)
+		{
+			if (p_amo->get_is_move())
+			{
+				p_amo->Show(des);       //  nhấp chuột thì đạn sẽ bắn ra
+				//truyen kich thuoc vao man hinh
+				p_amo->HandleMove(SCREEN_WIDTH, SCREEN_HEIGHT);  // cho đạn di chuyển trong màn hình
+			}
+			//dan di qua gioi han thi xoa
+			else
+			{
+				if (p_amo != NULL)   //  xét điều khiện khi đạn rea ngoài màng hình
+				{
+					p_amo_list_.erase(p_amo_list_.begin() + i);
+
+					delete p_amo;    // xóa đạn
+					p_amo = NULL;
+				}
+			}
+		}
+	}
+}
+
+void MainObject::HandleMove()       // hàm di chuyển
+{
+	// di chuyển ở mép trên cùng bên trái
+	rect_.x += x_val_;
+
+	if (rect_.x < 0 || rect_.x + WIDTH_MAIN_OBJECT > SCREEN_WIDTH) //an lui mai
+	{
+		rect_.x -= x_val_;
+	}
+
+	rect_.y += y_val;
+	if (rect_.y < 0 || rect_.y + HEIGHT_MAIN_OBJECT > SCREEN_HEIGHT - 150) //gioi han may bay
+	{
+		rect_.y -= y_val;
+	}
+	
+}
+
+//viet ham remove dan
+void MainObject::RemoveAmo(const int& idx)
+{
+
+	if (idx >= 0 && idx < p_amo_list_.size())//bam chuot ltuc nen size no dc cap phat ltuc thi idx phai dam bao luon nho hon
+	{
+		AmoObject* p_amo = p_amo_list_.at(idx);
+		if (p_amo != NULL)
+		{
+			delete p_amo;
+			p_amo = NULL;//sau khi xoa vien dan thi dan no dc vao cho trong
+		}
+		p_amo_list_.erase(p_amo_list_.begin() + idx);
+	}
+
+}
+
+
+
+
+
+
+
+
+ExplosionObject.cpp
+#include "ExplosionObject.h"
+
+ExplosionObject::ExplosionObject()
+{
+
+}
+
+ExplosionObject::~ExplosionObject()
+{
+
+}
+
+//ktr frame thu may
+void ExplosionObject::set_clip()
+{
+	//xet tung vtri bdau cua tung frame
+	clip_[0].x = 0;
+	clip_[0].y = 0;
+	clip_[0].w = EXP_WIDTH;
+	clip_[0].h = EXP_HEIGHT;
+
+	clip_[1].x = EXP_WIDTH;
+	clip_[1].y = 0;
+	clip_[1].w = EXP_WIDTH;
+	clip_[1].h = EXP_HEIGHT;
+
+	clip_[2].x = 2 * EXP_WIDTH;
+	clip_[2].y = 0;
+	clip_[2].w = EXP_WIDTH;
+	clip_[2].h = EXP_HEIGHT;
+
+	clip_[3].x = 3 * EXP_WIDTH;
+	clip_[3].y = 0;
+	clip_[3].w = EXP_WIDTH;
+	clip_[3].h = EXP_HEIGHT;
+}
+void ExplosionObject::ShowEx(SDL_Surface* des)
+{
+	if (frame_ >= 4)//hinh minh chi co 4 frame 
+	{
+		frame_ = 0;
+	}
+
+	SDLCommonFunc::ApplySurfaceClip(this->p_object_, des, &clip_[frame_], rect_.x, rect_.y);
+}
+
+
+
+
+
+
+
+TextObject.cpp
+#include "TextObject.h"
+
+TextObject::TextObject()
+{
+	//set mau mac dinh
+	rect_.x = 0;
+	rect_.y = 0;
+	text_color_.r = 255;
+	text_color_.g = 255;
+	text_color_.b = 255;
+
+}
+
+TextObject::~TextObject()
+{
+
+}
+
+void TextObject::SetColor(const int& type)
+{
+	if (type == RED_TEXT)
+	{
+		SDL_Color color = { 255, 0, 0 };
+		text_color_ = color;
+	}
+	else if (type == WHITE_TEXT)
+	{
+		SDL_Color color = { 255, 255, 255 };
+		text_color_ = color;
+	}
+	else
+	{
+		SDL_Color color = { 0, 0, 0 };
+		text_color_ = color;
+	}
+
+}
+
+void TextObject::CreateGameText(TTF_Font* font, SDL_Surface* des)
+{
+	p_object_ = TTF_RenderText_Solid(font, str_val_.c_str(), text_color_);//ham nay transfer font, mau chu
+	Show(des);// muon show len phai goi ham nay
+}
